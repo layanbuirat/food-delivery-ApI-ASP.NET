@@ -20,49 +20,35 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// 2. Database Configuration
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+// 2. Database Configuration - SQLite فقط بدون تضارب
+var dbPath = Path.Combine(Directory.GetCurrentDirectory(), "Data", "fooddelivery.db");
 
-if (!string.IsNullOrEmpty(connectionString) && connectionString.Contains("SqlServer", StringComparison.OrdinalIgnoreCase))
+// تأكد من إنشاء مجلد Data
+var dataDir = Path.GetDirectoryName(dbPath);
+if (!Directory.Exists(dataDir))
 {
-    // Use SQL Server if connection string is provided
-    builder.Services.AddDbContext<ApplicationDbContext>(options =>
-        options.UseSqlServer(connectionString));
+    Directory.CreateDirectory(dataDir);
 }
-else
-{
-    // Use SQLite with correct path for Render
-    var dbPath = Path.Combine(Directory.GetCurrentDirectory(), "Data", "fooddelivery.db");
 
-    // Ensure Data directory exists
-    var dataDir = Path.GetDirectoryName(dbPath);
-    if (!Directory.Exists(dataDir))
-    {
-        Directory.CreateDirectory(dataDir);
-    }
-
-    builder.Services.AddDbContext<ApplicationDbContext>(options =>
-        options.UseSqlite($"Data Source={dbPath}"));
-}
+// إضافة DbContext مرة واحدة فقط
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlite($"Data Source={dbPath}"));
 
 // 3. Register Services
 builder.Services.AddScoped<IAuthService, AuthService>();
 
 var app = builder.Build();
 
-// 4. Apply Migrations and Seed Data
+// 4. تهيئة قاعدة البيانات - مرة واحدة فقط
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
     try
     {
-        // Apply migrations or create database
+        // إنشاء قاعدة البيانات والجداول
         dbContext.Database.EnsureCreated();
         Console.WriteLine("✅ Database created successfully!");
-
-        // Optional: Seed initial data
-        // await SeedData.Initialize(dbContext);
     }
     catch (Exception ex)
     {
@@ -70,12 +56,12 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// 5. Swagger Middleware - Enable in Production too!
+// 5. Swagger Middleware
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "Food Delivery API v1");
-    c.RoutePrefix = "swagger"; // Access at /swagger
+    c.RoutePrefix = "swagger";
 });
 
 // 6. Middleware Pipeline
@@ -114,13 +100,5 @@ app.MapGet("/health", () =>
         timestamp = DateTime.UtcNow
     });
 });
-using (var scope = app.Services.CreateScope())
-{
-    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-    // هذا ينشئ قاعدة البيانات والجداول تلقائياً
-    dbContext.Database.EnsureCreated();
-
-    Console.WriteLine("✅ Database created successfully!");
-}
 app.Run();
