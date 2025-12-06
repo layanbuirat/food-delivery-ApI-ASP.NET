@@ -69,25 +69,25 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
 
-// 7. Health Check Endpoint
-app.MapGet("/", () =>
-{
-    return Results.Json(new
-    {
-        message = "Food Delivery API is running! 🚀",
-        status = "active",
-        timestamp = DateTime.UtcNow,
-        endpoints = new
-        {
-            restaurants = "/api/restaurants",
-            orders = "/api/orders",
-            auth = "/api/auth",
-            admin = "/api/admin",
-            swagger = "/swagger",
-            health = "/health"
-        }
-    });
-});
+//// 7. Health Check Endpoint
+//app.MapGet("/", () =>
+//{
+//    return Results.Json(new
+//    {
+//        message = "Food Delivery API is running! 🚀",
+//        status = "active",
+//        timestamp = DateTime.UtcNow,
+//        endpoints = new
+//        {
+//            restaurants = "/api/restaurants",
+//            orders = "/api/orders",
+//            auth = "/api/auth",
+//            admin = "/api/admin",
+//            swagger = "/swagger",
+//            health = "/health"
+//        }
+//    });
+//});
 
 // 8. Health Check Endpoint
 app.MapGet("/health", () =>
