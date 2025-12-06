@@ -1,4 +1,5 @@
-﻿namespace FoodDeliveryAPI.DTOs.Orders
+﻿// DTOs/Orders/CreateOrderDto.cs
+namespace FoodDeliveryAPI.DTOs.Orders
 {
     public class CreateOrderDto
     {

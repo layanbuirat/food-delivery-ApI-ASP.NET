@@ -1,104 +1,105 @@
-﻿using FoodDeliveryAPI.Data;
-using FoodDeliveryAPI.Services;
-using Microsoft.EntityFrameworkCore;
+﻿// Program.cs
+using FoodDeliveryAPI.Data; 
+using FoodDeliveryAPI.Services; 
+using Microsoft.EntityFrameworkCore; 
 using Microsoft.OpenApi.Models;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// Add services
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-
-// 1. Swagger Configuration
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "Food Delivery API",
         Version = "v1",
-        Description = "API for Food Delivery System"
+        Description = "API for managing food delivery system"
+    });
+
+    // Add JWT Authentication to Swagger
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string[] {}
+        }
     });
 });
 
-// 2. Database Configuration - SQLite فقط بدون تضارب
-var dbPath = Path.Combine(Directory.GetCurrentDirectory(), "Data", "fooddelivery.db");
-
-// تأكد من إنشاء مجلد Data
-var dataDir = Path.GetDirectoryName(dbPath);
-if (!Directory.Exists(dataDir))
-{
-    Directory.CreateDirectory(dataDir);
-}
-
-// إضافة DbContext مرة واحدة فقط
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlite($"Data Source={dbPath}"));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))); 
 
-// 3. Register Services
+// Add Authentication with JWT
+var jwtSettings = builder.Configuration.GetSection("JwtSettings");
+var key = Encoding.ASCII.GetBytes(jwtSettings["Secret"] ?? "DefaultSecretKey12345678901234567890"); 
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.RequireHttpsMetadata = false;
+    options.SaveToken = true;
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(key),
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidIssuer = jwtSettings["Issuer"] ?? "FoodDeliveryAPI",
+        ValidAudience = jwtSettings["Audience"] ?? "FoodDeliveryClient",
+        ClockSkew = TimeSpan.Zero
+    };
+});
+
+// Add Authorization
+builder.Services.AddAuthorization();
+
 builder.Services.AddScoped<IAuthService, AuthService>();
 
 var app = builder.Build();
 
-// 4. تهيئة قاعدة البيانات - مرة واحدة فقط
-using (var scope = app.Services.CreateScope())
+if (app.Environment.IsDevelopment())
 {
-    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-    try
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
     {
-        // إنشاء قاعدة البيانات والجداول
-        dbContext.Database.EnsureCreated();
-        Console.WriteLine("✅ Database created successfully!");
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"❌ Database initialization failed: {ex.Message}");
-    }
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Food Delivery API v1");
+        c.RoutePrefix = "swagger";
+    });
 }
 
-// 5. Swagger Middleware
-app.UseSwagger();
-app.UseSwaggerUI(c =>
-{
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Food Delivery API v1");
-    c.RoutePrefix = "swagger";
-});
-
-// 6. Middleware Pipeline
 app.UseHttpsRedirection();
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-//// 7. Health Check Endpoint
-//app.MapGet("/", () =>
-//{
-//    return Results.Json(new
-//    {
-//        message = "Food Delivery API is running! 🚀",
-//        status = "active",
-//        timestamp = DateTime.UtcNow,
-//        endpoints = new
-//        {
-//            restaurants = "/api/restaurants",
-//            orders = "/api/orders",
-//            auth = "/api/auth",
-//            admin = "/api/admin",
-//            swagger = "/swagger",
-//            health = "/health"
-//        }
-//    });
-//});
-
-// 8. Health Check Endpoint
-app.MapGet("/health", () =>
-{
-    return Results.Json(new
-    {
-        status = "healthy",
-        service = "Food Delivery API",
-        environment = app.Environment.EnvironmentName,
-        timestamp = DateTime.UtcNow
-    });
-});
+app.UseCors(x => x
+    .AllowAnyOrigin()
+    .AllowAnyMethod()
+    .AllowAnyHeader());
 
 app.Run();
